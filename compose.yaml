@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: bond_db
+      POSTGRES_USER: bond_user
+      POSTGRES_PASSWORD: bond_password
+    ports:
+    - "5432:5432"
+    volumes:
+      - bond_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bond_user -d bond_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  bond_postgres_data:
