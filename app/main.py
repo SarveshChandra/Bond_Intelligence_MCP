@@ -1,11 +1,13 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.models import BondTranche
+from app.schemas import BondTrancheCreate, BondTrancheRead
 
 app = FastAPI(
     title=settings.app_name,
@@ -31,3 +33,29 @@ def readiness_check(db: Session = Depends(get_db)) -> dict[str, str]:
         "status": "ready",
         "database": "available",
     }
+
+@app.post(
+    "/bonds",
+    response_model=BondTrancheRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Bonds"]
+)
+def create_bond(
+    bond_data: BondTrancheCreate,
+    db: Session = Depends(get_db)
+) -> BondTranche:
+    bond = BondTranche(**bond_data.model_dump())
+
+    try:
+        db.add(bond)
+        db.commit()
+        db.refresh(bond)
+    except IntegrityError as error:
+        db.rollback()
+
+        raise HTTPException(
+            status_code = status.HTTP_409_CONFLICT,
+            detail="A bond with this ISIN already exists."
+        ) from error
+
+    return bond
