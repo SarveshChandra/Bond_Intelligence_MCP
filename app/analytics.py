@@ -2,7 +2,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 TWO_DECIMAL_PLACES = Decimal("0.01")
 
-def calculate_versubscription_ratio(
+def calculate_oversubscription_ratio(
         tranche_size: Decimal,
         final_orderbook: Decimal
 ) -> Decimal:
