@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Numeric, String, Text, func
+from sqlalchemy import Date, DateTime, Numeric, String, Text, func, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -38,4 +38,37 @@ class BondTranche(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
+    )
+
+class YieldCurvePoint(Base):
+    __tablename__ = "yield_curve_points"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "issuer",
+            "currency",
+            "observation_date",
+            "tenor_years",
+            name="uq_yield_curve_point"
+        ),
+        Index(
+            "ix_yield_curve_points_lookup",
+            "issuer",
+            "currency",
+            "observation_date"
+        )
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    issuer: Mapped[str] = mapped_column(String(200))
+    currency: Mapped[str] = mapped_column(String(3))
+    observation_date: Mapped[date] = mapped_column(Date)
+
+    tenor_years: Mapped[Decimal] = mapped_column(Numeric(6,2))
+    yield_pct: Mapped[Decimal] = mapped_column(Numeric(7,4))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now()
     )

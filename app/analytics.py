@@ -1,6 +1,14 @@
 from decimal import Decimal, ROUND_HALF_UP
+from typing import Literal
 
 TWO_DECIMAL_PLACES = Decimal("0.01")
+
+CurveShape = Literal[
+    "normal",
+    "flat",
+    "inverted",
+    "humped"
+]
 
 def calculate_oversubscription_ratio(
         tranche_size: Decimal,
@@ -64,3 +72,62 @@ def calculate_nic(
         TWO_DECIMAL_PLACES,
         rounding=ROUND_HALF_UP
     )
+
+def classify_curve_shape(
+        points: list[tuple[Decimal, Decimal]],
+        flat_tolerance_pct: Decimal = Decimal("0.10"),
+        hump_threshold_pct: Decimal = Decimal("0.10")
+) -> CurveShape:
+    if len(points) < 3:
+        raise ValueError(
+            "at least 3 curve points are required."
+        )
+
+    if flat_tolerance_pct < 0:
+        raise ValueError(
+            "flat tolerance pct cannot be negative."
+        )
+
+    if hump_threshold_pct < 0:
+        raise ValueError(
+            "hump threshold pct cannot be negative"
+        )
+
+    sorted_points = sorted(
+        points,
+        key=lambda point: point[0]
+    )
+
+    tenors = [tenor for tenor, _ in sorted_points]
+
+    if any(tenor <= 0 for tenor in tenors):
+        raise ValueError(
+            "tenor years must be greater than 0"
+        )
+
+    if len(set(tenors)) != len(tenors):
+        raise ValueError(
+            "curve points must have unique tenors"
+        )
+
+    short_yield = sorted_points[0][1]
+    long_yield = sorted_points[-1][1]
+
+    middle_yields = [curve_yield for _, curve_yield in sorted_points[1:-1]]
+
+    highest_middle_yield = max(middle_yields)
+
+    if (
+        highest_middle_yield - max(short_yield, long_yield) >= hump_threshold_pct
+    ):
+        return "humped"
+
+    end_to_end_change = long_yield - short_yield
+
+    if end_to_end_change > flat_tolerance_pct:
+        return "normal"
+
+    if end_to_end_change < -flat_tolerance_pct:
+        return "inverted"
+
+    return "flat"
