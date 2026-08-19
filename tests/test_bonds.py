@@ -5,6 +5,8 @@ from app.database import SessionLocal
 from app.main import app
 from app.models import BondTranche
 
+from decimal import Decimal
+
 client = TestClient(app)
 
 TEST_ISIN = "XSTEST000001"
@@ -100,3 +102,55 @@ def test_missing_bond_returns_404() -> None:
     assert response.json() == {
         "detail": "Bond not found"
     }
+
+def test_get_orderbook_analytics() -> None:
+    remove_test_bond()
+
+    try:
+        created_bond = create_test_bond()
+        bond_id = created_bond["id"]
+
+        response = client.get(
+            f"/bonds/{bond_id}/orderbook"
+        )
+
+        assert response.status_code == 200
+
+        data = response.json()
+
+        assert data["bond_id"] == bond_id
+        assert data["isin"] == TEST_ISIN
+        assert Decimal(
+            str(data["oversubscription_ratio"])
+        ) == Decimal("3.00")
+        assert Decimal(
+            str(data["attrition_pct"])
+        ) == Decimal("14.29")
+    finally:
+        remove_test_bond()
+
+def test_get_pricing_analytics() -> None:
+    remove_test_bond()
+
+    try:
+        created_bond = create_test_bond()
+        bond_id = created_bond["id"]
+
+        response = client.get(
+            f"/bonds/{bond_id}/pricing"
+        )
+
+        assert response.status_code == 200
+
+        data = response.json()
+
+        assert data["bond_id"] == bond_id
+        assert data["isin"] == TEST_ISIN
+        assert Decimal(
+            str(data["pricing_tightening_bps"])
+        ) == Decimal("20.00")
+        assert Decimal(
+            str(data["nic_bps"])
+        ) == Decimal("7.00")
+    finally:
+        remove_test_bond()
