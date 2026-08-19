@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Path, Query
 
-from sqlalchemy import text
+from sqlalchemy import text, select
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import Session
 
@@ -57,5 +57,45 @@ def create_bond(
             status_code = status.HTTP_409_CONFLICT,
             detail="A bond with this ISIN already exists."
         ) from error
+
+    return bond
+
+@app.get(
+    "/bonds",
+    response_model=list[BondTrancheRead],
+    tags=["Bonds"]
+)
+def list_bonds(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=100),
+    db: Session = Depends(get_db)
+) -> list[BondTranche]:
+    statement = (
+        select(BondTranche)
+        .order_by(BondTranche.id)
+        .offset(skip)
+        .limit(limit)
+    )
+
+    bonds = db.scalars(statement).all()
+
+    return list(bonds)
+
+@app.get(
+    "/bonds/{bond_id}",
+    response_model=BondTrancheRead,
+    tags=["Bonds"]
+)
+def get_bond(
+    bond_id: int = Path(gt=0),
+    db: Session = Depends(get_db)
+) -> BondTranche:
+    bond = db.get(BondTranche, bond_id)
+
+    if bond is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bond not found"
+        )
 
     return bond

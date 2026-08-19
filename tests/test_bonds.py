@@ -18,7 +18,7 @@ def remove_test_bond() -> None:
         )
         db.commit()
 
-def test_create_bond() -> None:
+def create_test_bond() -> dict:
     remove_test_bond()
 
     try:
@@ -54,5 +54,49 @@ def test_create_bond() -> None:
         assert response_data["isin"] == TEST_ISIN
         assert response_data["issuer"] == "Test Industries"
         assert response_data["created_at"] is not None
+
+        return response_data
+    finally:
+        print("test bond created")
+
+def test_get_bond() -> None:
+    remove_test_bond()
+
+    try:
+        created_bond = create_test_bond()
+        bond_id = created_bond["id"]
+
+        response = client.get(f"/bonds/{bond_id}")
+
+        assert response.status_code == 200
+        assert response.json()["id"] == bond_id
+        assert response.json()["isin"] == TEST_ISIN
     finally:
         remove_test_bond()
+
+def test_list_bonds() -> None:
+    remove_test_bond()
+
+    try:
+        create_test_bond()
+
+        response = client.get("/bonds?skip=0&limit=100")
+
+        assert response.status_code == 200
+
+        bond_isins = [
+            bond["isin"]
+            for bond in response.json()
+        ]
+
+        assert TEST_ISIN in bond_isins
+    finally:
+        remove_test_bond()
+
+def test_missing_bond_returns_404() -> None:
+    response = client.get("/bonds/999999999")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Bond not found"
+    }
