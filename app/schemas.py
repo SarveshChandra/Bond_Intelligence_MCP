@@ -42,3 +42,24 @@ class BondTrancheRead(BondTrancheBase):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+# api schema
+class BondOrderbookAnalytics(BaseModel):
+    bond_id: int
+    isin: str
+    currency: str
+    tranche_size: Decimal
+    peak_orderbook: Decimal
+    final_orderbook: Decimal
+    oversubscription_ratio: Decimal
+    attrition_pct: Decimal | None
+
+# api schema
+class BondPricingAnalytics(BaseModel):
+    bond_id: int
+    isin: str
+    ipt_spread_bps: Decimal
+    final_spread_bps: Decimal
+    fair_value_spread_bps: Decimal
+    pricing_tightening_bps: Decimal
+    nic_bps: Decimal

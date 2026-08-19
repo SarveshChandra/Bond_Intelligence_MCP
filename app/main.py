@@ -7,12 +7,37 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models import BondTranche
-from app.schemas import BondTrancheCreate, BondTrancheRead
+from app.schemas import (
+    BondTrancheCreate,
+    BondTrancheRead,
+    BondOrderbookAnalytics,
+    BondPricingAnalytics
+)
+from app.analytics import (
+    calculate_attrition_percentage,
+    calculate_nic,
+    calculate_oversubscription_ratio,
+    calculate_pricing_tightening
+)
 
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
 )
+
+def get_bond_or_404(
+        db: Session,
+        bond_id: int
+) -> BondTranche:
+    bond = db.get(BondTranche, bond_id)
+
+    if bond is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bond not found"
+        )
+
+    return bond    
 
 @app.get("/health", tags=["System"])
 def health_check() -> dict[str, str]:
@@ -90,12 +115,63 @@ def get_bond(
     bond_id: int = Path(gt=0),
     db: Session = Depends(get_db)
 ) -> BondTranche:
-    bond = db.get(BondTranche, bond_id)
+    return get_bond_or_404(db, bond_id)
 
-    if bond is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bond not found"
+@app.get(
+    "/bonds/{bond_id}/orderbook",
+    response_model=BondOrderbookAnalytics,
+    tags=["Analytics"]
+)
+def get_orderbook_analytics(
+    bond_id: int = Path(gt=0),
+    db: Session = Depends(get_db)
+) -> BondOrderbookAnalytics:
+    bond = get_bond_or_404(db, bond_id)
+
+    return BondOrderbookAnalytics(
+        bond_id=bond.id,
+        isin=bond.isin,
+        currency=bond.currency,
+        tranche_size=bond.tranche_size,
+        peak_orderbook=bond.peak_orderbook,
+        final_orderbook=bond.final_orderbook,
+        oversubscription_ratio=(
+            calculate_oversubscription_ratio(
+                tranche_size=bond.tranche_size,
+                final_orderbook=bond.final_orderbook
+            )
+        ),
+        attrition_pct=calculate_attrition_percentage(
+            peak_orderbook=bond.peak_orderbook,
+            final_orderbook=bond.final_orderbook
         )
+    )
 
-    return bond
+@app.get(
+    "/bonds/{bond_id}/pricing",
+    response_model=BondPricingAnalytics,
+    tags=["Analytics"]
+)
+def get_pricing_analytics(
+    bond_id: int = Path(gt=0),
+    db: Session = Depends(get_db)
+) -> BondPricingAnalytics:
+    bond = get_bond_or_404(db, bond_id)
+
+    return BondPricingAnalytics(
+        bond_id=bond.id,
+        isin=bond.isin,
+        ipt_spread_bps=bond.ipt_spread_bps,
+        final_spread_bps=bond.final_spread_bps,
+        fair_value_spread_bps=bond.fair_value_spread_bps,
+        pricing_tightening_bps=(
+            calculate_pricing_tightening(
+                ipt_spread_bps=bond.ipt_spread_bps,
+                final_spread_bps=bond.final_spread_bps
+            )
+        ),
+        nic_bps=calculate_nic(
+            final_spread_bps=bond.final_spread_bps,
+            fair_value_spread_bps=bond.fair_value_spread_bps
+        )
+    )
